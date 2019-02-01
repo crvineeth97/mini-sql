@@ -1,6 +1,7 @@
 import sys
 from collections import defaultdict
 
+
 def report_error(error):
     print(error)
     sys.exit(1)
@@ -40,7 +41,10 @@ for query in queries:
                 continue
             selections.append(selection)
         i += 1
-    if i == len(query):
+    if len(selections) == 0:
+        report_error(
+            "ERROR: No selections have been provided after SELECT statement")
+    if i == query_length:
         report_error(
             "ERROR: No tables to select from. Syntax error in FROM clause.")
     tables = []
@@ -51,12 +55,14 @@ for query in queries:
             tables.append(name)
         i += 1
     conditions = []
+    op = ''
     while i < query_length and query[i].lower() != ';':
         cond = ''
         while i < query_length and query[i].lower() != 'and' and query[i].lower() != 'or':
             cond += query[i]
             i += 1
-        op = query[i].lower()
+        if i < query_length:
+            op = query[i].lower()
         conditions.append(cond)
         i += 1
     # Selections can be *, sum, average, max and min(col), multiple columns
@@ -67,10 +73,37 @@ for query in queries:
         lines = f.readlines()
         lines = [line.strip() for line in lines]
     table_name = ''
-    for i, line in enumerate(lines):
+    flg = 0
+    for line in enumerate(lines):
         if line == '<begin_table>':
-            table_name = lines[i+1]
-            
-    tables_info = {}
+            flg = 1
+        if flg:
+            table_name = line
+            flg = 0
+            continue
+        metadata[table_name].append(line)
+    tables_info = defaultdict(defaultdict(list))
     for table in tables:
         with open(table + '.csv', 'r'):
+            lines = f.readlines()
+            lines = [line.strip().split(',') for line in lines]
+        for line in lines:
+            for i, val in enumerate(line):
+                tables_info[table][metadata[table][i]].append(val)
+    rel_ops = []
+    operands = []
+    for cond in conditions:
+        if '>=' in cond:
+            rop = '>='
+        elif '<=' in cond:
+            rop = '<='
+        elif '=' in cond:
+            rop = '='
+        elif '<' in cond:
+            rop = '<'
+        elif '>' in cond:
+            rop = '>'
+        else:
+            report_error('ERROR: Condition does not have a relational operator')
+        rel_ops.append(rop)
+        operands.append(cond.split(rop))
